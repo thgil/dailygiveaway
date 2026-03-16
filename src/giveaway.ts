@@ -339,13 +339,29 @@ export async function runGiveawayTask(config: Config): Promise<void> {
       await saveState(context, config);
     }
 
-    // Check winners
+    // Check winners — only notify once per win
+    const winNotifiedPath = path.join(path.dirname(config.storageStatePath), "win-notified.txt");
+    const lastNotified = fs.existsSync(winNotifiedPath)
+      ? fs.readFileSync(winNotifiedPath, "utf-8").trim()
+      : "";
+
     const isWinner = await checkWinners(page, config);
     if (isWinner) {
-      await sendNotification(
-        "Giveaway Winner!",
-        `${config.winnerName} was found in the winners list at ${config.giveawayUrl}`
-      );
+      // Extract which day the win is for to avoid re-notifying
+      const bodyText = await page.textContent("body") || "";
+      const winMatch = bodyText.match(new RegExp(`(March \\d+)\\s*-\\s*${config.winnerName}`, "i"));
+      const winKey = winMatch ? winMatch[1] : "unknown";
+
+      if (lastNotified !== winKey) {
+        await sendNotification(
+          "Giveaway Winner!",
+          `${config.winnerName} won on ${winKey}! Check ${config.giveawayUrl}`
+        );
+        fs.writeFileSync(winNotifiedPath, winKey);
+        logger.info("Winner notification sent and recorded", { winKey });
+      } else {
+        logger.info("Already notified about this win, skipping", { winKey });
+      }
     }
 
     // Save state for next run
