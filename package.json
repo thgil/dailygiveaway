@@ -1,0 +1,17 @@
+{
+  "name": "daily-giveaway",
+  "version": "1.0.0",
+  "description": "Automated daily giveaway entry service using Playwright",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "playwright-chromium": "1.52.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

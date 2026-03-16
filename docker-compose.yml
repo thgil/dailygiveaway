@@ -1,0 +1,18 @@
+services:
+  giveaway-bot:
+    build: .
+    container_name: daily-giveaway
+    restart: unless-stopped
+    environment:
+      - GIVEAWAY_URL=https://example.com/giveaway
+      - LOGIN_USERNAME=your_username
+      - LOGIN_PASSWORD=your_password
+      - PUSHBULLET_TOKEN=your_pushbullet_token
+      - WINNER_NAME=Your Name
+      - WINDOW_START_HOUR=8
+      - WINDOW_END_HOUR=22
+      - MAX_RETRIES=3
+      - RETRY_DELAY_MS=5000
+      - TZ=America/New_York
+    volumes:
+      - ./data:/data
