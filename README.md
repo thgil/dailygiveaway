@@ -32,17 +32,32 @@ Automated daily giveaway entry bot for CheatHappens. Runs as a long-lived Docker
 | `RETRY_DELAY_MS` | No | `5000` | Delay between retries in milliseconds |
 | `TZ` | No | `America/New_York` | Timezone for scheduling |
 
-## Setup
+## Quick Start (Docker Compose)
 
-### 1. Clone and build
+The easiest way to run this — no build needed. The image is pulled automatically from GitHub Container Registry.
 
-```bash
-git clone <repo-url> daily-giveaway
-cd daily-giveaway
-docker build -t daily-giveaway .
-```
+1. Create a directory on your server and download the compose file:
+   ```bash
+   mkdir -p /mnt/user/appdata/daily-giveaway
+   cd /mnt/user/appdata/daily-giveaway
+   curl -O https://raw.githubusercontent.com/thgil/dailygiveaway/main/docker-compose.yml
+   ```
 
-### 2. Run with Docker CLI
+2. Edit `docker-compose.yml` and fill in your values (giveaway URL, credentials, etc.)
+
+3. Pull and run:
+   ```bash
+   docker compose up -d
+   ```
+
+4. To update to the latest image:
+   ```bash
+   docker compose pull && docker compose up -d
+   ```
+
+## Alternative: Docker CLI
+
+Pull and run directly without a compose file:
 
 ```bash
 docker run -d \
@@ -56,47 +71,26 @@ docker run -d \
   -e WINDOW_START_HOUR=8 \
   -e WINDOW_END_HOUR=22 \
   -e TZ=America/New_York \
-  -v /path/to/data:/data \
-  daily-giveaway
+  -v /mnt/user/appdata/daily-giveaway/data:/data \
+  ghcr.io/thgil/dailygiveaway:latest
 ```
 
-### 3. Or run with Docker Compose
+## Alternative: Build from Source
 
-Copy `.env.example` to `.env` and fill in your values, then:
+If you prefer to build the image yourself:
 
 ```bash
-docker compose up -d
+git clone https://github.com/thgil/dailygiveaway.git
+cd dailygiveaway
+docker build -t daily-giveaway .
 ```
 
-## Unraid Setup
+Then run with `daily-giveaway` instead of `ghcr.io/thgil/dailygiveaway:latest`.
 
-1. SSH into your Unraid server
-2. Copy the project files and build the image:
-   ```bash
-   cd /mnt/user/appdata
-   git clone <repo-url> daily-giveaway
-   cd daily-giveaway
-   docker build -t daily-giveaway .
-   ```
-3. Run the container:
-   ```bash
-   docker run -d \
-     --name daily-giveaway \
-     --restart unless-stopped \
-     -e GIVEAWAY_URL="https://www.cheathappens.com/giveaway032026special.asp" \
-     -e LOGIN_USERNAME="your_email@example.com" \
-     -e LOGIN_PASSWORD="your_password" \
-     -e PUSHBULLET_TOKEN="your_pushbullet_token" \
-     -e WINNER_NAME="YourUsername" \
-     -e WINDOW_START_HOUR=8 \
-     -e WINDOW_END_HOUR=22 \
-     -e TZ=America/New_York \
-     -v /mnt/user/appdata/daily-giveaway/data:/data \
-     daily-giveaway
-   ```
+## Unraid Docker UI
 
-Alternatively, add it through the Unraid Docker UI:
-- **Repository**: `daily-giveaway` (local build)
+Add the container through the Unraid web interface:
+- **Repository**: `ghcr.io/thgil/dailygiveaway:latest`
 - **Restart Policy**: `unless-stopped`
 - Add each environment variable under **Variables**
 - Add a **Path**: Container `/data` -> Host `/mnt/user/appdata/daily-giveaway/data`
@@ -118,10 +112,10 @@ The `/data` volume stores:
 docker logs -f daily-giveaway
 
 # Check persisted log files
-cat /path/to/data/logs/giveaway-$(date +%Y-%m-%d).log
+cat /mnt/user/appdata/daily-giveaway/data/logs/giveaway-$(date +%Y-%m-%d).log
 
 # View error screenshots
-ls /path/to/data/screenshots/
+ls /mnt/user/appdata/daily-giveaway/data/screenshots/
 ```
 
 ## How Scheduling Works
@@ -136,6 +130,11 @@ ls /path/to/data/screenshots/
 The giveaway URL changes monthly (e.g. `giveaway032026special.asp` for March 2026). When a new giveaway is posted, update the `GIVEAWAY_URL` and restart:
 
 ```bash
+# If using compose:
+# Edit docker-compose.yml with the new URL, then:
+docker compose up -d
+
+# If using docker run:
 docker stop daily-giveaway && docker rm daily-giveaway
 # Run the docker run command again with the new URL
 ```

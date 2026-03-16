@@ -1,6 +1,6 @@
 services:
   giveaway-bot:
-    build: .
+    image: ghcr.io/thgil/dailygiveaway:latest
     container_name: daily-giveaway
     restart: unless-stopped
     environment:
