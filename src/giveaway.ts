@@ -349,8 +349,9 @@ export async function runGiveawayTask(config: Config): Promise<void> {
     if (isWinner) {
       // Extract which day the win is for to avoid re-notifying
       const bodyText = await page.textContent("body") || "";
-      const winMatch = bodyText.match(new RegExp(`(March \\d+)\\s*-\\s*${config.winnerName}`, "i"));
-      const winKey = winMatch ? winMatch[1] : "unknown";
+      const escapedName = config.winnerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const winMatch = bodyText.match(new RegExp(`(\\w+ \\d+)\\s*-\\s*${escapedName}`, "i"));
+      const winKey = winMatch ? winMatch[1] : `win-${new Date().toISOString().split("T")[0]}`;
 
       if (lastNotified !== winKey) {
         await sendNotification(
