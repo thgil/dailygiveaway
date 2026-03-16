@@ -266,7 +266,7 @@ async function checkWinners(page: Page, config: Config): Promise<boolean> {
 
   logger.info("Winners section extracted", {
     length: winnersText.length,
-    preview: winnersText.substring(0, 200).trim(),
+    preview: winnersText.replace(/[\t\n]+/g, " ").trim().substring(0, 500),
   });
 
   if (winnersText.toLowerCase().includes(config.winnerName.toLowerCase())) {
