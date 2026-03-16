@@ -106,7 +106,7 @@ async function isLoggedIn(page: Page): Promise<boolean> {
  */
 async function performLogin(page: Page, config: Config): Promise<void> {
   logger.info("Navigating to login page", { url: LOGIN_URL });
-  await page.goto(LOGIN_URL, { waitUntil: "networkidle", timeout: 30000 });
+  await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
 
   // Fill email field
   const emailField = await page.$('#inputEmail');
@@ -139,7 +139,7 @@ async function performLogin(page: Page, config: Config): Promise<void> {
   await loginBtn.click();
   logger.info("Clicked Login button");
 
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(3000);
 
   // Verify we're logged in by checking for the absence of login.asp link
@@ -216,7 +216,7 @@ async function enterGiveaway(page: Page): Promise<void> {
     await enterBtn.click();
   }
 
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(3000);
 
   // Verify entry was accepted — button should now be disabled
@@ -230,34 +230,40 @@ async function enterGiveaway(page: Page): Promise<void> {
 
 /**
  * The giveaway page has a "RECENT PRIZE WINNERS" section with usernames.
- * Search that section for the configured winner name.
+ * We need to search ONLY within that section — not the whole page body,
+ * because the logged-in username also appears in the nav bar.
  */
 async function checkWinners(page: Page, config: Config): Promise<boolean> {
   logger.info("Checking winners list for name", { name: config.winnerName });
 
-  const bodyText = await page.textContent("body");
-  if (!bodyText) {
-    logger.warn("Could not read page body text");
-    return false;
-  }
-
-  // Find the winners section and search within it
-  const winnersIdx = bodyText.indexOf("RECENT PRIZE WINNERS");
-  if (winnersIdx === -1) {
-    logger.warn("Could not find 'RECENT PRIZE WINNERS' section on page");
-    // Fall back to searching the entire page
-    if (bodyText.toLowerCase().includes(config.winnerName.toLowerCase())) {
-      logger.info("Winner name found on page (outside winners section)", {
-        name: config.winnerName,
-      });
-      return true;
+  // Try to find the winners section by its heading, then get the parent container's text.
+  // Uses a string expression to avoid TypeScript DOM type issues (runs in browser context).
+  const winnersSection = await page.evaluate(`(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      if (walker.currentNode.textContent && walker.currentNode.textContent.includes("RECENT PRIZE WINNERS")) {
+        const el = walker.currentNode.parentElement;
+        if (!el) continue;
+        const container = el.closest("section, .card, .card-body, [class*='winner'], div.col, div.row");
+        if (container) return container.textContent;
+        const parent = el.parentElement;
+        if (parent) return parent.textContent;
+      }
     }
+    return null;
+  })()`) as string | null;
+
+  if (!winnersSection) {
+    logger.warn("Could not find 'RECENT PRIZE WINNERS' section on page");
     return false;
   }
 
-  // Search from the winners heading onwards
-  const winnersText = bodyText.substring(winnersIdx);
-  if (winnersText.toLowerCase().includes(config.winnerName.toLowerCase())) {
+  logger.info("Winners section text found", {
+    length: winnersSection.length,
+    preview: winnersSection.substring(0, 200),
+  });
+
+  if (winnersSection.toLowerCase().includes(config.winnerName.toLowerCase())) {
     logger.info("Winner found in RECENT PRIZE WINNERS!", { name: config.winnerName });
     return true;
   }
@@ -300,7 +306,7 @@ export async function runGiveawayTask(config: Config): Promise<void> {
     page = await context.newPage();
 
     logger.info("Navigating to giveaway page", { url: config.giveawayUrl });
-    await page.goto(config.giveawayUrl, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(config.giveawayUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     // Check login status
     if (!(await isLoggedIn(page))) {
@@ -309,7 +315,7 @@ export async function runGiveawayTask(config: Config): Promise<void> {
 
       // Navigate back to giveaway page after login
       logger.info("Returning to giveaway page after login");
-      await page.goto(config.giveawayUrl, { waitUntil: "networkidle", timeout: 30000 });
+      await page.goto(config.giveawayUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
       // Verify login actually worked on the giveaway page
       if (!(await isLoggedIn(page))) {
