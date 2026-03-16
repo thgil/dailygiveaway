@@ -229,42 +229,43 @@ async function enterGiveaway(page: Page): Promise<void> {
 }
 
 /**
- * The giveaway page has a "RECENT PRIZE WINNERS" section with usernames.
- * We need to search ONLY within that section — not the whole page body,
- * because the logged-in username also appears in the nav bar.
+ * The giveaway page has a "CURRENT DAILY GAME WINNERS ARE..." section.
+ * Winners are listed as "March 1 - Chaos_God", "March 2 - Frewick", etc.
+ * We extract just that section's text to avoid matching the logged-in
+ * username in the nav bar.
  */
 async function checkWinners(page: Page, config: Config): Promise<boolean> {
   logger.info("Checking winners list for name", { name: config.winnerName });
 
-  // Try to find the winners section by its heading, then get the parent container's text.
-  // Uses a string expression to avoid TypeScript DOM type issues (runs in browser context).
-  const winnersSection = await page.evaluate(`(() => {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (walker.currentNode.textContent && walker.currentNode.textContent.includes("RECENT PRIZE WINNERS")) {
-        const el = walker.currentNode.parentElement;
-        if (!el) continue;
-        const container = el.closest("section, .card, .card-body, [class*='winner'], div.col, div.row");
-        if (container) return container.textContent;
-        const parent = el.parentElement;
-        if (parent) return parent.textContent;
-      }
-    }
-    return null;
-  })()`) as string | null;
-
-  if (!winnersSection) {
-    logger.warn("Could not find 'RECENT PRIZE WINNERS' section on page");
+  const bodyText = await page.textContent("body");
+  if (!bodyText) {
+    logger.warn("Could not read page body text");
     return false;
   }
 
-  logger.info("Winners section text found", {
-    length: winnersSection.length,
-    preview: winnersSection.substring(0, 200),
+  // Find the winners section by its actual heading
+  const startMarker = "CURRENT DAILY GAME WINNERS ARE";
+  const startIdx = bodyText.indexOf(startMarker);
+  if (startIdx === -1) {
+    logger.warn("Could not find 'CURRENT DAILY GAME WINNERS ARE' section on page");
+    return false;
+  }
+
+  // The section ends at "Please email" (the claim instructions line)
+  const sectionStart = startIdx + startMarker.length;
+  const endMarker = "Please email";
+  const endIdx = bodyText.indexOf(endMarker, sectionStart);
+  const winnersText = endIdx !== -1
+    ? bodyText.substring(sectionStart, endIdx)
+    : bodyText.substring(sectionStart, sectionStart + 1000);
+
+  logger.info("Winners section extracted", {
+    length: winnersText.length,
+    preview: winnersText.substring(0, 200).trim(),
   });
 
-  if (winnersSection.toLowerCase().includes(config.winnerName.toLowerCase())) {
-    logger.info("Winner found in RECENT PRIZE WINNERS!", { name: config.winnerName });
+  if (winnersText.toLowerCase().includes(config.winnerName.toLowerCase())) {
+    logger.info("Winner found!", { name: config.winnerName });
     return true;
   }
 
