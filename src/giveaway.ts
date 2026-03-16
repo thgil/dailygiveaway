@@ -219,12 +219,17 @@ async function enterGiveaway(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(3000);
 
-  // Verify entry was accepted — button should now be disabled
-  const nowDisabled = await page.$('button:has-text("CLICK TO ENTER")[disabled]');
-  if (nowDisabled) {
-    logger.info("Entry confirmed — button is now disabled");
+  // Verify entry was accepted — page should show confirmation text
+  const bodyText = await page.textContent("body");
+  if (bodyText && bodyText.includes("You have already entered the giveaway")) {
+    logger.info("Entry confirmed — 'already entered' message visible");
   } else {
-    logger.warn("Entry button state unclear after click — may need manual verification");
+    const nowDisabled = await page.$('button:has-text("CLICK TO ENTER")[disabled]');
+    if (nowDisabled) {
+      logger.info("Entry confirmed — button is now disabled");
+    } else {
+      logger.warn("Entry status unclear after click — may need manual verification");
+    }
   }
 }
 
