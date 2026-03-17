@@ -339,6 +339,9 @@ export async function runGiveawayTask(config: Config): Promise<void> {
       await saveState(context, config);
     }
 
+    // Navigate back to giveaway page in case entry click redirected us
+    await page.goto(config.giveawayUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+
     // Check winners — only notify once per win
     const winNotifiedPath = path.join(path.dirname(config.storageStatePath), "win-notified.txt");
     const lastNotified = fs.existsSync(winNotifiedPath)
