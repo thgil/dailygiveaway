@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   // Enter scheduling loop
   while (true) {
     const nextRun = computeNextRun(config.windowStartHour, config.windowEndHour);
-    logger.info(`Next run scheduled for ${nextRun.toISOString()}`);
+    logger.info("Next run scheduled", { target: nextRun.toISOString() });
     await sleepUntil(nextRun);
     await runWithRetries(config);
   }

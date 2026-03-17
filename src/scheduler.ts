@@ -1,55 +1,51 @@
 import { logger } from "./logger";
 
 /**
- * Compute the next execution time: a random moment in the next available window
- * between windowStartHour and windowEndHour (in the container's local timezone,
- * controlled by the TZ environment variable).
- *
- * If today's window hasn't ended and is at least 6 hours away, schedule today.
- * Otherwise schedule for tomorrow's window.
+ * Format a date in the container's local timezone for readable logs.
  */
-export function computeNextRun(startHour: number, endHour: number): Date {
-  const now = new Date();
-
-  // Try today's window first (local time, respects TZ env var)
-  const todayStart = new Date(now);
-  todayStart.setHours(startHour, 0, 0, 0);
-  const todayEnd = new Date(now);
-  todayEnd.setHours(endHour, 0, 0, 0);
-
-  const minNextRun = new Date(now.getTime() + 6 * 60 * 60 * 1000);
-
-  if (todayEnd > minNextRun) {
-    const effectiveStart = todayStart > minNextRun ? todayStart : minNextRun;
-    if (effectiveStart < todayEnd) {
-      const rangeMs = todayEnd.getTime() - effectiveStart.getTime();
-      const randomOffset = Math.floor(Math.random() * rangeMs);
-      return new Date(effectiveStart.getTime() + randomOffset);
-    }
-  }
-
-  // Otherwise schedule for tomorrow's window
-  const tomorrowStart = new Date(now);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  tomorrowStart.setHours(startHour, 0, 0, 0);
-
-  const tomorrowEnd = new Date(now);
-  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-  tomorrowEnd.setHours(endHour, 0, 0, 0);
-
-  const rangeMs = tomorrowEnd.getTime() - tomorrowStart.getTime();
-  const randomOffset = Math.floor(Math.random() * rangeMs);
-  return new Date(tomorrowStart.getTime() + randomOffset);
+function formatLocal(date: Date): string {
+  return date.toLocaleString("en-US", {
+    timeZone: process.env.TZ || "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 }
 
 /**
- * Sleep until the target date, logging the wait.
+ * Compute the next execution time: a random moment in the window
+ * (startHour–endHour, local time via TZ) on the day ~24 hours from now.
+ *
+ * By anchoring on "24h from now" we always land on the next calendar day
+ * regardless of what local time it currently is — no double-runs, no skips.
+ * The initial run on container startup covers today.
+ */
+export function computeNextRun(startHour: number, endHour: number): Date {
+  // Start from 24h in the future, then snap to that day's window
+  const target = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const windowStart = new Date(target);
+  windowStart.setHours(startHour, 0, 0, 0);
+
+  const windowEnd = new Date(target);
+  windowEnd.setHours(endHour, 0, 0, 0);
+
+  const rangeMs = windowEnd.getTime() - windowStart.getTime();
+  const randomOffset = Math.floor(Math.random() * rangeMs);
+  return new Date(windowStart.getTime() + randomOffset);
+}
+
+/**
+ * Sleep until the target date, logging the wait in local time.
  */
 export async function sleepUntil(target: Date): Promise<void> {
   const ms = target.getTime() - Date.now();
   if (ms <= 0) return;
 
-  logger.info(`Sleeping until ${target.toISOString()} (${Math.round(ms / 60000)} minutes)`);
+  logger.info(`Sleeping until ${formatLocal(target)} (${Math.round(ms / 60000)} minutes)`);
 
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
