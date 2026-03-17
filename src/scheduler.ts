@@ -2,7 +2,8 @@ import { logger } from "./logger";
 
 /**
  * Compute the next execution time: a random moment in the next available window
- * between windowStartHour and windowEndHour (interpreted as UTC hours).
+ * between windowStartHour and windowEndHour (in the container's local timezone,
+ * controlled by the TZ environment variable).
  *
  * If today's window hasn't ended and is at least 6 hours away, schedule today.
  * Otherwise schedule for tomorrow's window.
@@ -10,11 +11,11 @@ import { logger } from "./logger";
 export function computeNextRun(startHour: number, endHour: number): Date {
   const now = new Date();
 
-  // Try today's window first
-  const todayStart = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), startHour));
-  const todayEnd = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), endHour));
+  // Try today's window first (local time, respects TZ env var)
+  const todayStart = new Date(now);
+  todayStart.setHours(startHour, 0, 0, 0);
+  const todayEnd = new Date(now);
+  todayEnd.setHours(endHour, 0, 0, 0);
 
   const minNextRun = new Date(now.getTime() + 6 * 60 * 60 * 1000);
 
@@ -28,10 +29,13 @@ export function computeNextRun(startHour: number, endHour: number): Date {
   }
 
   // Otherwise schedule for tomorrow's window
-  const tomorrowStart = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, startHour));
-  const tomorrowEnd = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, endHour));
+  const tomorrowStart = new Date(now);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  tomorrowStart.setHours(startHour, 0, 0, 0);
+
+  const tomorrowEnd = new Date(now);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+  tomorrowEnd.setHours(endHour, 0, 0, 0);
 
   const rangeMs = tomorrowEnd.getTime() - tomorrowStart.getTime();
   const randomOffset = Math.floor(Math.random() * rangeMs);
