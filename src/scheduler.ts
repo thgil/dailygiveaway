@@ -1,21 +1,37 @@
 import { logger } from "./logger";
 
 /**
- * Compute the next execution time: a random moment in tomorrow's window
- * between windowStartHour and windowEndHour.
+ * Compute the next execution time: a random moment in the next available window
+ * between windowStartHour and windowEndHour (interpreted as UTC hours).
  *
- * Always schedules for the next calendar day to guarantee exactly one run per day.
+ * If today's window hasn't ended and is at least 6 hours away, schedule today.
+ * Otherwise schedule for tomorrow's window.
  */
 export function computeNextRun(startHour: number, endHour: number): Date {
   const now = new Date();
 
-  const tomorrowStart = new Date(now);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  tomorrowStart.setHours(startHour, 0, 0, 0);
+  // Try today's window first
+  const todayStart = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), startHour));
+  const todayEnd = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), endHour));
 
-  const tomorrowEnd = new Date(now);
-  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-  tomorrowEnd.setHours(endHour, 0, 0, 0);
+  const minNextRun = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+
+  if (todayEnd > minNextRun) {
+    const effectiveStart = todayStart > minNextRun ? todayStart : minNextRun;
+    if (effectiveStart < todayEnd) {
+      const rangeMs = todayEnd.getTime() - effectiveStart.getTime();
+      const randomOffset = Math.floor(Math.random() * rangeMs);
+      return new Date(effectiveStart.getTime() + randomOffset);
+    }
+  }
+
+  // Otherwise schedule for tomorrow's window
+  const tomorrowStart = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, startHour));
+  const tomorrowEnd = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, endHour));
 
   const rangeMs = tomorrowEnd.getTime() - tomorrowStart.getTime();
   const randomOffset = Math.floor(Math.random() * rangeMs);
