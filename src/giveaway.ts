@@ -184,6 +184,7 @@ async function hasAlreadyEntered(page: Page): Promise<boolean> {
     const lower = bodyText.toLowerCase();
     if (
       lower.includes("already entered") ||
+      lower.includes("best of luck") ||
       lower.includes("entry received") ||
       lower.includes("you are entered")
     ) {
@@ -197,7 +198,7 @@ async function hasAlreadyEntered(page: Page): Promise<boolean> {
 /**
  * Click the "CLICK TO ENTER" button.
  */
-async function enterGiveaway(page: Page): Promise<void> {
+async function enterGiveaway(page: Page, giveawayUrl: string): Promise<void> {
   logger.info("Attempting to enter giveaway");
 
   // Wait for Cloudflare scripts so the button click handler is active
@@ -219,16 +220,27 @@ async function enterGiveaway(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(3000);
 
-  // Verify entry was accepted — page should show confirmation text
+  // Navigate back to giveaway page — the click may have redirected us
+  await page.goto(giveawayUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await waitForCloudflare(page);
+
+  // Verify entry was accepted — giveaway page should now show confirmation text
   const bodyText = await page.textContent("body");
-  if (bodyText && bodyText.includes("You have already entered the giveaway")) {
-    logger.info("Entry confirmed — 'already entered' message visible");
+  const bodyLower = bodyText?.toLowerCase() || "";
+  if (
+    bodyLower.includes("already entered") ||
+    bodyLower.includes("best of luck") ||
+    bodyLower.includes("entry received") ||
+    bodyLower.includes("you are entered")
+  ) {
+    logger.info("Entry confirmed — confirmation text visible");
   } else {
     const nowDisabled = await page.$('button:has-text("CLICK TO ENTER")[disabled]');
     if (nowDisabled) {
       logger.info("Entry confirmed — button is now disabled");
     } else {
-      logger.warn("Entry status unclear after click — may need manual verification");
+      const snippet = bodyLower.substring(0, 500);
+      logger.warn("Entry status unclear after click — may need manual verification", { snippet });
     }
   }
 }
@@ -335,12 +347,9 @@ export async function runGiveawayTask(config: Config): Promise<void> {
     if (await hasAlreadyEntered(page)) {
       logger.info("Already entered today's giveaway — skipping entry");
     } else {
-      await enterGiveaway(page);
+      await enterGiveaway(page, config.giveawayUrl);
       await saveState(context, config);
     }
-
-    // Navigate back to giveaway page in case entry click redirected us
-    await page.goto(config.giveawayUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     // Check winners — only notify once per win
     const winNotifiedPath = path.join(path.dirname(config.storageStatePath), "win-notified.txt");
