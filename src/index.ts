@@ -3,6 +3,7 @@ import { logger } from "./logger";
 import { sendNotification } from "./notify";
 import { computeNextRun, sleepUntil } from "./scheduler";
 import { runGiveawayTask } from "./giveaway";
+import { checkAndNotifyMonthChange } from "./monthNotifier";
 
 async function runWithRetries(config: ReturnType<typeof loadConfig>): Promise<void> {
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   // Run first task shortly after startup (30s delay to let container settle)
   logger.info("Running initial task in 30 seconds...");
   await new Promise((r) => setTimeout(r, 30000));
+  await checkAndNotifyMonthChange(config.timezone, config.storageStatePath);
   await runWithRetries(config);
 
   // Enter scheduling loop
@@ -55,6 +57,7 @@ async function main(): Promise<void> {
     const nextRun = computeNextRun(config.windowStartHour, config.windowEndHour);
     logger.info("Next run scheduled", { target: nextRun.toISOString() });
     await sleepUntil(nextRun);
+    await checkAndNotifyMonthChange(config.timezone, config.storageStatePath);
     await runWithRetries(config);
   }
 }
